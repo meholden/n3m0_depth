@@ -1,5 +1,5 @@
 """
-Example of connecting to an autopilot via serial communication using pymavlink
+From: Example of connecting to an autopilot via serial communication using pymavlink
 """
 
 # Import mavutil
