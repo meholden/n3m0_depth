@@ -34,7 +34,7 @@ while True:
     msg = master.recv_match()
     if not msg:
         continue
-    print("msg type: \t%s\n" % msg.get_type());
+    ##print("msg type: \t%s\n" % msg.get_type());
     
 ##    if msg.get_type() == 'HEARTBEAT':
 ##        print("\n\n*****Got message: %s*****" % msg.get_type())

@@ -9,10 +9,10 @@ class pymavlinkThread(Thread):
         def __init__(self,time=0,msg="no data"):
             self.time=time
             self.msg=msg
-##    class Depth(object):
-##        def __init__(self,time=0,ft=999):
-##            self.time=time
-##            self.ft=ft
+    class GPS(object):
+        def __init__(self,time=0,GPS=[]):
+            self.time=time
+            self.GPS = GPS
 ##    class Temperature(object):
 ##        def __init__(self,time=0,degC=999):
 ##            self.time=time
@@ -25,7 +25,7 @@ class pymavlinkThread(Thread):
         self.baud = baud
         # add classes
         self.heartbeat = self.Heartbeat()
-##        self.speed = self.Speed() 
+        self.gps = self.GPS() 
 ##        self.depth = self.Depth()
 ##        self.temperature = self.Temperature()
         self.kill = False
@@ -65,104 +65,64 @@ class pymavlinkThread(Thread):
                 #print("msg type: \t%s\n" % msg.get_type());
                 
                 if msg.get_type() == 'HEARTBEAT':
-                    print("\n\n*****Got message: %s*****" % msg.get_type())
-                    print("Message: %s" % msg)
-                    print("\nAs dictionary: %s" % msg.to_dict())
-                    # Armed = MAV_STATE_STANDBY (4), Disarmed = MAV_STATE_ACTIVE (3)
-                    print("\nSystem status: %s" % msg.system_status)
+                    self.heartbeat.msg = msg.to_dict()
+                    self.heartbeat.time = time.time()
+##                    print("\n\n*****Got message: %s*****" % msg.get_type())
+##                    print("Message: %s" % msg)
+##                    print("\nAs dictionary: %s" % msg.to_dict())
+##                    # Armed = MAV_STATE_STANDBY (4), Disarmed = MAV_STATE_ACTIVE (3)
+##                    print("\nSystem status: %s" % msg.system_status)
                 
 
                 if msg.get_type() == 'GPS_RAW_INT':
-                    GPS = msg.to_dict();
-                    print("Lat is %s" % (float(GPS["lat"])/1e7))
-                    print("Lon is %s" % (float(GPS["lon"])/1e7))
+                    self.gps.GPS = msg.to_dict()
+                    self.gps.time = time.time()
+##                    print("Lat is %s" % (float(GPS["lat"])/1e7))
+##                    print("Lon is %s" % (float(GPS["lon"])/1e7))
         
             except Exception as e:
                 print("error!=======")
                 print("===")
                 print(str(e))
                 print("=====")
-        print("end of mavlink!")
+        print("\nend of mavlink!\n")
 
  
 if __name__ == '__main__':
 
     try:
         port = "/dev/ttyS0"
+        
+        old_time = time.time()
+        old_time2 = time.time()
+        t0=float(time.time())
+        ii=0
 
         mavlink = pymavlinkThread(port, 57600)
         print("Starting up...")
         mavlink.start()
 
         while (True):
-            if (old_speed != nmea.speed.time):
-                print("SPEED, Depth, temp: " + str(nmea.speed.kt) + ", " + str(nmea.depth.ft)
-                      + ", " + str(nmea.temperature.degC)
-                      + " " + str(nmea.speed.time-old_speed) + " " + str(nmea.depth.time-old_depth))
-                old_speed = nmea.speed.time
-            if (old_depth != nmea.depth.time):
-                print("speed, DEPTH, temp: " + str(nmea.speed.kt) + ", " + str(nmea.depth.ft)
-                      + ", " + str(nmea.temperature.degC)
-                      + " " + str(nmea.speed.time-old_speed) + " " + str(nmea.depth.time-old_depth))
-                old_depth = nmea.depth.time
+            t1 = float(time.time())
+            dt = t1-t0
+            t0=t1
+            if (old_time2 != mavlink.gps.time):
+##                print("\nAs dictionary: %s" % mavlink.gps.GPS)
+##                print("\n t=%s " % mavlink.gps.time )
+##                print("\n ot=%s " % old_time)
+                print("\n Gdt=%f" % (float(mavlink.gps.time)-float(old_time2)))
+##                print("dt=%f" % (dt))
+                old_time2=mavlink.gps.time
+                  
+            if (old_time != mavlink.heartbeat.time):
+                print("\n dt=%f" % (float(mavlink.heartbeat.time)-float(old_time)))
+                print("dt=%f" % (dt))
+                old_time = mavlink.heartbeat.time
                 ii=ii+1
-            #time.sleep(0.5)
+            time.sleep(0.1) # this seems important so thread can have time to run.
                 
     except KeyboardInterrupt:
         mavlink.kill = True
         print("Goodbye!")
         
-
-
-
-
-"""
-From: Example of connecting to an autopilot via serial communication using pymavlink
-"""
-
-# Import mavutil
-from pymavlink import mavutil
-
-import time
-
-# Create the connection
-# Need to provide the serial port and baudrate
-#master = mavutil.mavlink_connection("/dev/ttyS0", baud=57600)
-master = mavutil.mavlink_connection("/dev/ttyS0", baud=57600, source_system=1)
-
-# Restart the ArduSub board !
-##master.reboot_autopilot()
-
-### Get all information !
-##while True:
-##    try:
-##        print(master.recv_match().to_dict())
-##    except:
-##        pass
-##    time.sleep(0.1)
-##
-
-# Wait for packets to come in and decode
-# if location is updated, check for new NMEA, if new NMEA then update log file
-while True:
-    msg = master.recv_match()
-    if not msg:
-        continue
-    print("msg type: \t%s\n" % msg.get_type());
-    
-##    if msg.get_type() == 'HEARTBEAT':
-##        print("\n\n*****Got message: %s*****" % msg.get_type())
-##        print("Message: %s" % msg)
-##        print("\nAs dictionary: %s" % msg.to_dict())
-##        # Armed = MAV_STATE_STANDBY (4), Disarmed = MAV_STATE_ACTIVE (3)
-##        print("\nSystem status: %s" % msg.system_status)
-    
-
-    if msg.get_type() == 'GPS_RAW_INT':
-        GPS = msg.to_dict();
-        print("Lat is %s" % (float(GPS["lat"])/1e7))
-        print("Lon is %s" % (float(GPS["lon"])/1e7))
-        
-
-print "All done"
 
