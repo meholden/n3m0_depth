@@ -37,10 +37,14 @@ import makegeojson
 
 # Initialize geojson object
 
+# Setup Tide lookup (requires internet)
+
+
 # Main loop:=====================
 
 
 	# If new nmea depth data
+               # if channel 5 > 1500
 
 		# log depth with most recent location and other telemetry
 

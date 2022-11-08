@@ -9,25 +9,45 @@ class pymavlinkThread(Thread):
         def __init__(self,time=0,msg="no data"):
             self.time=time
             self.msg=msg
+            
     class GPS(object):
         def __init__(self,time=0,GPS=[]):
             self.time=time
             self.GPS = GPS
-##    class Temperature(object):
-##        def __init__(self,time=0,degC=999):
-##            self.time=time
-##            self.degC=degC
-##
+            self.lat = 0
+            self.lon = 0
+            self.COG = 0
+            self.SOG = 0
+            
+    class RC_CHANNELS(object):
+        def __init__(self,time=0):
+            self.time=time
+            self.chan1 = 0
+            self.chan2 = 0
+            self.chan3 = 0
+            self.chan4 = 0
+            self.chan5 = 0
+            self.chan6 = 0
+            self.chan7 = 0
+            self.chan8 = 0
+
+    class BATTERY_STATUS(object):
+        def __init__(self,time=0):
+            self.time=time
+            self.batt1V = 0
+            
+            
 # init all the things.            
     def __init__(self, port, baud):
         Thread.__init__(self)
         self.port = port
         self.baud = baud
-        # add classes
+        # add classes from messages
         self.heartbeat = self.Heartbeat()
-        self.gps = self.GPS() 
-##        self.depth = self.Depth()
-##        self.temperature = self.Temperature()
+        self.gps = self.GPS()
+        self.rc = self.RC_CHANNELS()
+        self.battery = self.BATTERY_STATUS()
+        
         self.kill = False
 ##        
 ##    def parseGPS(self,nmeastr):
@@ -56,13 +76,25 @@ class pymavlinkThread(Thread):
     def run(self):
         self.master = mavutil.mavlink_connection(self.port, baud=self.baud, source_system=1)
 
+    # This code should get the following from the mavlink messages:
+    # battery voltage
+    # heading
+    # COG
+    # SOG
+    # RC inputs from Tx (for logging on/off)
+
+    # Also need for logging:
+    # nmea depth
+    # nmea temp
+    # tide lookup
+    
         
         while (not self.kill):
             try:
                 msg = self.master.recv_match()
                 if not msg:
                     continue
-                #print("msg type: \t%s\n" % msg.get_type());
+##                print("msg type: \t%s\n" % msg.get_type());
                 
                 if msg.get_type() == 'HEARTBEAT':
                     self.heartbeat.msg = msg.to_dict()
@@ -73,10 +105,39 @@ class pymavlinkThread(Thread):
 ##                    # Armed = MAV_STATE_STANDBY (4), Disarmed = MAV_STATE_ACTIVE (3)
 ##                    print("\nSystem status: %s" % msg.system_status)
                 
+                if msg.get_type() == 'BATTERY_STATUS':
+                    m2d = msg.to_dict()
+                    self.battery.time = time.time()
+                    self.battery.batt1V = (m2d["voltages"][0]/1e3)
+                    #print("\nBatt: %f" % (m2d["voltages"][0]/1e3))
+                    
+##                if msg.get_type() == 'POWER_STATUS':
+##                    print("\n\n*****Got message: %s*****" % msg.get_type())
+##                    print("Message: %s" % msg)
+##                    print("\nAs dictionary: %s" % msg.to_dict())
+
+                if msg.get_type() == 'RC_CHANNELS':
+                    m2d = msg.to_dict()
+                    self.rc.time = time.time()
+                    self.rc.chan1 = m2d["chan1_raw"]
+                    self.rc.chan2 = m2d["chan2_raw"]
+                    self.rc.chan3 = m2d["chan3_raw"]
+                    self.rc.chan4 = m2d["chan4_raw"]
+                    self.rc.chan5 = m2d["chan5_raw"]
+                    self.rc.chan6 = m2d["chan6_raw"]
+                    self.rc.chan7 = m2d["chan7_raw"]
+                    self.rc.chan8 = m2d["chan8_raw"]
+##                    print("\n\n*****Got message: %s*****" % msg.get_type())
+##                    print("Message: %s" % msg)
+##                    print("\nAs dictionary: %s" % msg.to_dict())
 
                 if msg.get_type() == 'GPS_RAW_INT':
                     self.gps.GPS = msg.to_dict()
                     self.gps.time = time.time()
+                    self.gps.lat = float(self.gps.GPS["lat"])/1e7 # deg
+                    self.gps.lon = float(self.gps.GPS["lon"])/1e7 # deg
+                    self.gps.COG = float(self.gps.GPS["cog"])/1e2 # deg
+                    self.gps.SOG = float(self.gps.GPS["vel"])/1e2 # m/s
 ##                    print("Lat is %s" % (float(GPS["lat"])/1e7))
 ##                    print("Lon is %s" % (float(GPS["lon"])/1e7))
         
@@ -111,14 +172,16 @@ if __name__ == '__main__':
 ##                print("\n t=%s " % mavlink.gps.time )
 ##                print("\n ot=%s " % old_time)
                 print("\n Gdt=%f" % (float(mavlink.gps.time)-float(old_time2)))
-##                print("dt=%f" % (dt))
+                print("COG = %f" % mavlink.gps.COG)
+                print("RC5 = %f" % mavlink.rc.chan5)
+                print("Batt = %f" % mavlink.battery.batt1V)
                 old_time2=mavlink.gps.time
                   
-            if (old_time != mavlink.heartbeat.time):
-                print("\n dt=%f" % (float(mavlink.heartbeat.time)-float(old_time)))
-                print("dt=%f" % (dt))
-                old_time = mavlink.heartbeat.time
-                ii=ii+1
+##            if (old_time != mavlink.heartbeat.time):
+##                print("\n dt=%f" % (float(mavlink.heartbeat.time)-float(old_time)))
+##                print("dt=%f" % (dt))
+##                old_time = mavlink.heartbeat.time
+##                ii=ii+1
             time.sleep(0.1) # this seems important so thread can have time to run.
                 
     except KeyboardInterrupt:
