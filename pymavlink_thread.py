@@ -18,6 +18,7 @@ class pymavlinkThread(Thread):
             self.lon = 0
             self.COG = 0
             self.SOG = 0
+            self.fix = 0
             
     class RC_CHANNELS(object):
         def __init__(self,time=0):
@@ -36,6 +37,15 @@ class pymavlinkThread(Thread):
             self.time=time
             self.batt1V = 0
             
+    class ATTITUDE(object):
+        def __init__(self,time=0):
+            self.time=time
+            self.pitch_deg = 0 
+            self.roll_deg = 0 
+            self.yaw_deg = 0 
+            self.pitchrate = 0
+            self.yawrate = 0
+            self.rollrate = 0
             
 # init all the things.            
     def __init__(self, port, baud):
@@ -47,6 +57,7 @@ class pymavlinkThread(Thread):
         self.gps = self.GPS()
         self.rc = self.RC_CHANNELS()
         self.battery = self.BATTERY_STATUS()
+        self.attitude = self.ATTITUDE()
         
         self.kill = False
 ##        
@@ -65,12 +76,13 @@ class pymavlinkThread(Thread):
 ##            msg = pynmea2.parse(nmeastr,check=False)
 ##            self.temperature.degC = msg.data[0]
 ##            self.temperature.time=time.time()
-##            
-##	def sendStatus(self,message):
-##		# Send a message for QGC to read out loud
-##		#  Severity from https://mavlink.io/en/messages/common.html#MAV_SEVERITY
-##		self.master.mav.statustext_send(mavutil.mavlink.MAV_SEVERITY_NOTICE,message.encode())
 ##
+        
+    def sendStatus(self,message):
+            # Send a message for QGC to read out loud
+            #  Severity from https://mavlink.io/en/messages/common.html#MAV_SEVERITY
+            self.master.mav.statustext_send(mavutil.mavlink.MAV_SEVERITY_NOTICE,message.encode())
+
 	
     
     def run(self):
@@ -131,6 +143,19 @@ class pymavlinkThread(Thread):
 ##                    print("Message: %s" % msg)
 ##                    print("\nAs dictionary: %s" % msg.to_dict())
 
+                if msg.get_type() == 'ATTITUDE':
+                    m2d = msg.to_dict()
+                    self.attitude.time = time.time()
+                    self.attitude.pitch_deg = float(m2d["pitch"])*57.2958
+                    self.attitude.roll_deg = float(m2d["roll"])*57.2958
+                    self.attitude.yaw_deg = float(m2d["yaw"])*57.2958
+                    self.attitude.pitchrate = float(m2d["pitchspeed"])*57.2958
+                    self.attitude.rollrate = float(m2d["rollspeed"])*57.2958
+                    self.attitude.yawrate = float(m2d["yawspeed"])*57.2958
+##                    print("\n\n*****Got message: %s*****" % msg.get_type())
+##                    print("Message: %s" % msg)
+##                    print("\nAs dictionary: %s" % msg.to_dict())
+
                 if msg.get_type() == 'GPS_RAW_INT':
                     self.gps.GPS = msg.to_dict()
                     self.gps.time = time.time()
@@ -138,6 +163,7 @@ class pymavlinkThread(Thread):
                     self.gps.lon = float(self.gps.GPS["lon"])/1e7 # deg
                     self.gps.COG = float(self.gps.GPS["cog"])/1e2 # deg
                     self.gps.SOG = float(self.gps.GPS["vel"])/1e2 # m/s
+                    self.gps.fix = int(self.gps.GPS["fix_type"]) # 2=2D, 3=3D, 4=DGPS, see https://mavlink.io/en/messages/common.html#GPS_FIX_TYPE
 ##                    print("Lat is %s" % (float(GPS["lat"])/1e7))
 ##                    print("Lon is %s" % (float(GPS["lon"])/1e7))
         
@@ -150,12 +176,13 @@ class pymavlinkThread(Thread):
 
  
 if __name__ == '__main__':
-
+# Test code
     try:
         port = "/dev/ttyS0"
         
         old_time = time.time()
         old_time2 = time.time()
+        print_time = float(time.time())
         t0=float(time.time())
         ii=0
 
@@ -182,6 +209,13 @@ if __name__ == '__main__':
 ##                print("dt=%f" % (dt))
 ##                old_time = mavlink.heartbeat.time
 ##                ii=ii+1
+
+            if (t1>print_time):
+                messag = ("========GPS fix is: %f" % mavlink.gps.fix)
+                print(messag)
+                mavlink.sendStatus(messag)
+                print_time = t1+5
+                
             time.sleep(0.1) # this seems important so thread can have time to run.
                 
     except KeyboardInterrupt:
